@@ -1,5 +1,6 @@
 
 import json
+import os
 import threading
 import urllib.request
 import urllib.error
@@ -10,22 +11,57 @@ class OllamaClient:
     def __init__(
         self,
         model="qwen2.5:1.5b",
-        base_url="http://localhost:11434"
+        base_url=None,
+        auth_token=None
     ):
         self.model = model
-        self.base_url = base_url.rstrip("/")
+
+        # Local Ollama remains the default.
+        self.base_url = (
+            base_url
+            or os.getenv(
+                "NOVA_OLLAMA_URL",
+                "http://localhost:11434"
+            )
+        ).rstrip("/")
+
+        # Optional authentication for the remote proxy.
+        self.auth_token = (
+            auth_token
+            or os.getenv("NOVA_OLLAMA_TOKEN")
+        )
+
+    def _headers(self):
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        if self.auth_token:
+            headers["Authorization"] = (
+                f"Bearer {self.auth_token}"
+            )
+
+        return headers
 
     def is_available(self):
         try:
             request = urllib.request.Request(
                 f"{self.base_url}/api/tags",
+                headers=self._headers(),
                 method="GET"
             )
 
-            with urllib.request.urlopen(request, timeout=5) as response:
+            with urllib.request.urlopen(
+                request,
+                timeout=10
+            ) as response:
                 return response.status == 200
 
-        except (urllib.error.URLError, TimeoutError, OSError):
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            OSError
+        ):
             return False
 
     def _build_messages(self, message, system_prompt=None):
@@ -37,7 +73,6 @@ class OllamaClient:
                 "content": system_prompt
             })
 
-        # Accept structured conversation history.
         if isinstance(message, list):
             for item in message:
                 if not isinstance(item, dict):
@@ -57,7 +92,6 @@ class OllamaClient:
                     "content": content
                 })
 
-        # Keep compatibility with ordinary string messages.
         elif isinstance(message, str) and message.strip():
             messages.append({
                 "role": "user",
@@ -69,7 +103,10 @@ class OllamaClient:
     def chat(self, message, system_prompt=None):
         """Generate a complete response."""
 
-        messages = self._build_messages(message, system_prompt)
+        messages = self._build_messages(
+            message,
+            system_prompt
+        )
 
         if not messages:
             return "Please enter a message."
@@ -85,7 +122,7 @@ class OllamaClient:
         request = urllib.request.Request(
             f"{self.base_url}/api/chat",
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers=self._headers(),
             method="POST"
         )
 
@@ -113,7 +150,7 @@ class OllamaClient:
         except urllib.error.URLError:
             return (
                 "Cannot connect to Ollama. "
-                "Make sure the Ollama application is running."
+                "Check that the Ollama service is running."
             )
 
         except TimeoutError:
@@ -130,7 +167,10 @@ class OllamaClient:
     ):
         """Generate a response piece by piece."""
 
-        messages = self._build_messages(message, system_prompt)
+        messages = self._build_messages(
+            message,
+            system_prompt
+        )
 
         if not messages:
             yield "Please enter a message."
@@ -150,7 +190,7 @@ class OllamaClient:
         request = urllib.request.Request(
             f"{self.base_url}/api/chat",
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers=self._headers(),
             method="POST"
         )
 
@@ -198,7 +238,7 @@ class OllamaClient:
         except urllib.error.URLError:
             yield (
                 "Cannot connect to Ollama. "
-                "Make sure the Ollama application is running."
+                "Check that the Ollama service is running."
             )
 
         except TimeoutError:
