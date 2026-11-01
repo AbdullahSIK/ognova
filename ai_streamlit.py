@@ -32,7 +32,17 @@ def initialize_ai():
         st.session_state.nova_engine = ContextAwareNOVAEngine()
 
     if "nova_ollama" not in st.session_state:
-        st.session_state.nova_ollama = OllamaClient()
+        try:
+            ollama_url = st.secrets.get("NOVA_OLLAMA_URL")
+            ollama_token = st.secrets.get("NOVA_OLLAMA_TOKEN")
+        except Exception:
+            ollama_url = None
+            ollama_token = None
+
+        st.session_state.nova_ollama = OllamaClient(
+            base_url=ollama_url,
+            auth_token=ollama_token
+        )
 
     if "nova_chat_id" not in st.session_state:
         st.session_state.nova_chat_id = None
