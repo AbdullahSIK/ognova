@@ -380,11 +380,6 @@ def show_ai():
     else:
         st.caption("🟠 Ollama is not reachable")
 
-    st.warning(
-        "Local AI currently connects to Ollama on the machine running "
-        "this app. A hosted version needs a separate AI connection."
-    )
-
     if st.button("Clear Current Chat"):
         if st.session_state.nova_chat_id is not None:
             st.session_state.nova_chat_db.delete_conversation(
